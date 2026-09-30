@@ -17,7 +17,7 @@ public class UserCreator {
                 .email("wyattshears@gmail.com")
                 .documentType(DocumentType.CPF)
                 .password("123")
-                .role(Collections.singleton(Role.USER))
+                .roles(Collections.singleton(Role.USER))
                 .build();
     }
 

@@ -1,5 +1,7 @@
 package com.vadastore.music_store_api.security;
 
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.AllArgsConstructor;
 import org.springframework.context.annotation.Bean;
@@ -25,9 +27,10 @@ public class SecurityConfig {
     public SecurityFilterChain authSecurityFilterChain(HttpSecurity request) {
         return request.csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> {
-                    auth.requestMatchers("/auth/test").hasRole("ADMIN");
                     auth.requestMatchers("/auth/**").permitAll();
-                    auth.requestMatchers("/user/admin/createAdmin").hasRole("ADMIN");
+                    auth.requestMatchers("/reset-password/**").permitAll();
+                    auth.requestMatchers("/error").permitAll();
+                    auth.requestMatchers("/users/admin/createAdmin").hasRole("ADMIN");
                     auth.anyRequest().authenticated();
                 }).sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .addFilterBefore(rateLimitingFilter, UsernamePasswordAuthenticationFilter.class)
@@ -40,14 +43,18 @@ public class SecurityConfig {
                         """);
             })
                         .accessDeniedHandler((servletRequest, response, accessDeniedException) -> {
-                        response.setContentType("application/json");
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
                         response.getWriter().write("""
                                   {"error": "You don't have the required permission."}
                                 """);
                         })
+
                 )
                 .build();
     }
+
+
 
 
     @Bean

@@ -17,13 +17,10 @@ import java.util.stream.Collectors;
 
 @Getter
 @Setter
-@AllArgsConstructor
 @NoArgsConstructor
 public class UserDetailsImpl implements UserDetails, CredentialsContainer {
 
     private User user;
-    private Long id;
-    private String email;
 
 
     public UserDetailsImpl(User user) {
@@ -37,7 +34,7 @@ public class UserDetailsImpl implements UserDetails, CredentialsContainer {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return user.getRoles().stream().map(role -> new SimpleGrantedAuthority(role.name())).collect(Collectors.toList());
+            return user.getRoles().stream().map(role -> new SimpleGrantedAuthority("ROLE_" + role.name())).collect(Collectors.toList());
     }
 
     @Override

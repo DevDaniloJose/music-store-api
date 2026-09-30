@@ -22,17 +22,20 @@ public class RateLimitingFilter extends OncePerRequestFilter {
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
-        String clientIp = request.getRemoteAddr();
-        Bucket bucket = buckets.computeIfAbsent(clientIp, this::createNewBucket);
 
+        String uri = request.getRequestURI();
 
-        if (bucket.tryConsume(1)) {
-            filterChain.doFilter(request, response);
-        } else {
-            response.setStatus(429);
-            response.getWriter().write("{\"message\": \"Too many requests. Try again later.\"}");
+        if (uri.startsWith("/auth/") || uri.startsWith("/reset-password")) {
+            Bucket bucket = buckets.computeIfAbsent(request.getRemoteAddr(), this::createNewBucket);
+            if (!bucket.tryConsume(1)) {
+                response.setStatus(429);
+                response.setContentType("application/json");
+                response.getWriter().write("{\"error\": \"Too many requests...\"}");
+                return;
+            }
         }
 
+        filterChain.doFilter(request, response);
     }
 
    private Bucket createNewBucket(String clientIp) {

@@ -17,6 +17,7 @@ public class ResetToken {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
+    @Column(nullable = false, unique = true)
     private String token;
 
     private LocalDateTime expiresAt;

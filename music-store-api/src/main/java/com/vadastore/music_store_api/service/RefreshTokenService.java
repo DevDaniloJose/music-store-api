@@ -31,21 +31,18 @@ public class RefreshTokenService {
     public RefreshToken createRefreshToken(Long userId) {
 
         User user = userRepository.findById(userId).orElseThrow(() -> new EntityNotFoundException("User not found"));
-        RefreshToken refreshToken;
-        if (user.getRefreshToken() == null) {
-            RefreshToken refreshTokenBuilt = RefreshToken.builder().user(user).token(UUID.randomUUID().toString())
-                    .expiryDate(Instant.now().plusMillis(refreshTokenDurationMs))
-                    .build();
 
-            return refreshTokenRepository.save(refreshTokenBuilt);
+        RefreshToken refreshToken = refreshTokenRepository.findByUserId(userId).orElse(null);
 
+        if (refreshToken == null) {
+           refreshToken = RefreshToken.builder().user(user).token(UUID.randomUUID().toString())
+                    .expiryDate(Instant.now().plusMillis(refreshTokenDurationMs)).build();
         } else {
-           refreshToken = user.getRefreshToken();
-            refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
             refreshToken.setToken(UUID.randomUUID().toString());
+            refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
         }
-
         return refreshTokenRepository.save(refreshToken);
+
     }
 
     public Boolean isExpired(RefreshToken token) {

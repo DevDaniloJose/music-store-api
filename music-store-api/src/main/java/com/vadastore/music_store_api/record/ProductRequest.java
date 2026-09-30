@@ -24,7 +24,7 @@ public record ProductRequest(
                              String SKU,
 
                              @NotNull(message = "Stock quantity is required :)")
-                             @Min(value = 0, message = "Stock cannot be negative")
+                             @Min(value = 1, message = "stock must be greater than 0")
                              Integer  stockQuantity,
 
                              @Min(value = 0, message = "Min stock threshold cannot be negative")
@@ -50,6 +50,11 @@ public record ProductRequest(
 
 
         public Product toEntity(Seller seller) {
+
+            if (this.promotionalPrice != null && this.promotionalPrice.compareTo(this.price) >= 0) {
+                throw new IllegalArgumentException("Promotional price must be strictly lower than the regular price");
+            }
+
             return Product.builder()
                     .name(this.name)
                     .price(this.price)

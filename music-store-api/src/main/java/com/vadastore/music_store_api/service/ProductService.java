@@ -39,23 +39,24 @@ public class ProductService {
 
     }
 
-    public ProductResponse saveProduct(ProductRequest product, Long sellerId) {
-        if (product.price().compareTo(BigDecimal.ZERO) < 0 || product.stockQuantity() <= 0) {
-            throw new IllegalArgumentException("Product price must be equal or greater than zero and stock greater than 0");
-        }
+    public ProductResponse saveProduct(ProductRequest request, Long sellerId) {
 
         Seller seller = sellerRepository.findById(sellerId).orElseThrow(() -> new EntityNotFoundException("Seller not found"));
 
-        Product productEntity = product.toEntity(seller);
-
-        productRepository.save(productEntity);
-        return ProductResponse.fromEntity(productEntity);
+        Product productEntity = request.toEntity(seller);
+        Product savedProduct = productRepository.save(productEntity);
+        return ProductResponse.fromEntity(savedProduct);
     }
 
     public ProductResponse editProduct(Long id, ProductRequest updatedData) {
         Product product = productRepository.findById(id).orElseThrow(() -> new EntityNotFoundException("Product not found"));
 
+        BigDecimal newPrice = updatedData.price() != null ? updatedData.price() : product.getPrice();
+        BigDecimal newPromoPrice = updatedData.promotionalPrice() != null ? updatedData.promotionalPrice() : product.getPromotionalPrice();
 
+        if (newPromoPrice != null && newPromoPrice.compareTo(newPrice) >= 0) {
+            throw new IllegalArgumentException("Promotional price must be strictly lower than regular price");
+        }
         if (updatedData.price() != null) product.setPrice(updatedData.price());
 
         if (updatedData.stockQuantity() != null) product.setStock(updatedData.stockQuantity());
@@ -149,7 +150,8 @@ public class ProductService {
 
         product.setStock(productStock.stockQuantity());
 
-        return ProductResponse.fromEntity(productRepository.save(product));
+        return productStock;
+
     }
 
     public List<ProductResponse> findProductByPriceRange(BigDecimal minPrice, BigDecimal maxPrice) {
@@ -167,16 +169,6 @@ public class ProductService {
        }
 
      return productRepository.findByPriceBetween(minPrice, maxPrice).stream().map(ProductResponse::fromEntity).toList();
-    }
-
-    public ProductResponse createProduct(ProductRequest request, Long sellerID) {
-        Seller seller = sellerRepository.findById(sellerID).orElseThrow(() -> new EntityNotFoundException("Couldn't find user"));
-
-        Product product = request.toEntity(seller);
-
-        productRepository.save(product);
-
-        return ProductResponse.fromEntity(product);
     }
 
 

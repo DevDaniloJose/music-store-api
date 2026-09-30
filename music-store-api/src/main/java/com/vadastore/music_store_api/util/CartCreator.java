@@ -16,7 +16,7 @@ public class CartCreator {
         return Cart.builder()
                 .id(1L)
                 .buyer(BuyerCreator.buyerCreator())
-                .items(List.of(createCartItem())).discountPercentage(null).build();
+                .items(List.of(createCartItem())).discountFactor(null).build();
 
     }
 
@@ -24,7 +24,7 @@ public class CartCreator {
 
         return Cart.builder()
                 .id(2L)
-                .items(List.of(createCartItem())).discountPercentage(null).build();
+                .items(List.of(createCartItem())).discountFactor(null).build();
 
     }
 
@@ -57,6 +57,6 @@ public class CartCreator {
     public static Cart createCartWithItemQuantityGreaterThanStock() {
         return Cart.builder()
                 .id(1L)
-                .items(List.of(createCartItemUnavailableStock())).discountPercentage(null).build();
+                .items(List.of(createCartItemUnavailableStock())).discountFactor(null).build();
     }
 }

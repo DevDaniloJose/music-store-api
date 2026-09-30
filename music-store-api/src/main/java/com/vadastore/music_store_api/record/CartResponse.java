@@ -16,8 +16,8 @@ public record CartResponse(Long cartId, List<CartItemResponse> items, BigDecimal
 
         BigDecimal totalPrice = cart.getItems().stream().map(item -> item.getProduct().getEffectivePrice().multiply(BigDecimal.valueOf(item.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        if (cart.getDiscountPercentage() != null) {
-            totalPrice = totalPrice.multiply(cart.getDiscountPercentage());
+        if (cart.getDiscountFactor() != null) {
+            totalPrice = totalPrice.multiply(cart.getDiscountFactor());
         }
 
         int totalItems = cart.getItems().stream().mapToInt(CartItem::getQuantity).sum();

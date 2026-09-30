@@ -53,8 +53,13 @@ public class Product {
     @JoinColumn(name = "seller_id", nullable = false)
     private Seller seller;
 
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
+
     public BigDecimal getEffectivePrice() {
-        if (this.promotionalPrice != null && promotionalPrice.compareTo(BigDecimal.ZERO) > 0) {
+        if (this.promotionalPrice != null && promotionalPrice.compareTo(BigDecimal.ZERO) > 0 && this.promotionalPrice.compareTo(this.price) < 0) {
             return this.promotionalPrice;
         }
 

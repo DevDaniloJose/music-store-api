@@ -38,6 +38,7 @@ public class AuthService {
     private final CartService cartService;
     private final CartRepository cartRepository;
     private final BuyerRepository buyerRepository;
+    private final UserService userService;
     public String generateTokenForUser(User user) {
 
         Map<String, String> extraClaims = claimsFilled(user);
@@ -57,27 +58,34 @@ public class AuthService {
 
         long expireInterval = 15 * 60 * 1000L;
 
-        String accessToken = jwtUtility.generateToken(extraClaims, userFound.getUsername(), expireInterval);
+        if (userFound.getRoles().contains(Role.BUYER)) {
+
+            Buyer buyer = buyerRepository.findByUserId(userFound.getId()).orElseThrow(() -> new ResourceNotFoundException("Buyer profile not found"));
+
+            if (buyer.getCart() == null) {
+
+                Cart userNewCart = cartRepository.save(Cart.builder().buyer(buyer).build());
+                buyer.setCart(userNewCart);
+                buyerRepository.save(buyer);
+            }
+
+                if (request.guestCartId() != null) {
+                cartService.mergeGuestCartWithUserCart(request.guestCartId(), buyer.getCart().getId());
+            }
+
+        }
+
+        String accessToken = jwtUtility.generateToken(extraClaims, userFound.getEmail(), expireInterval);
         RefreshToken refreshToken = refreshTokenService.createRefreshToken(userFound.getId());
 
 
-        Buyer buyer = buyerRepository.findByUserId(userFound.getId()).orElseThrow(() -> new ResourceNotFoundException("Buyer profile not found"));
-
-      if (buyer.getCart() == null) {
-
-          Cart userNewCart = cartRepository.save(Cart.builder().buyer(buyer).build());
-          buyer.setCart(userNewCart);
-          buyerRepository.save(buyer);
-      }
-
-      if (request.guestCartId() != null) {
-          cartService.mergeGuestCartWithUserCart(request.guestCartId(), buyer.getCart().getId());
-      }
-
-
-      userRepository.save(userFound);
-
-        return new LoginResponse(userFound.getUsername(), userFound.getEmail(), accessToken, refreshToken.getToken(), userFound.getId());
+       return new LoginResponse(
+               userFound.getUsername(),
+               userFound.getEmail(),
+               accessToken,
+               refreshToken.getToken(),
+               userFound.getId()
+       );
 
     }
 
@@ -86,7 +94,7 @@ public class AuthService {
         Map<String, String> extraClaims = new HashMap<>();
 
         extraClaims.put("id", String.valueOf(user.getId()));
-        extraClaims.put("role", user.getRoles().stream().map(r -> "ROLE_" + r.name()).collect(Collectors.joining(",")));
+        extraClaims.put("role", user.getRoles().stream().map(r -> r.name().startsWith("ROLE_") ? r.name() : "ROLE_ "+ r.name()).collect(Collectors.joining(",")));
         extraClaims.put("username", user.getUsername());
 
         return extraClaims;
@@ -100,33 +108,22 @@ public class AuthService {
             throw new InvalidCredentialsException("invalid credentials");
         }
 
-        User user = User.builder()
-                .username(request.username())
-                .email(request.email())
-                .password(passwordEncoder.encode(request.password()))
-                .roles(Collections.singleton(Role.USER)).build();
 
-
-
-
-
-        User savedUser = userRepository.save(user);
-
-        Buyer buyer = Buyer.builder().user(savedUser).createdAt(LocalDateTime.now()).build();
-
-        Cart cart = Cart.builder().buyer(buyer).build();
-
-        Cart userNewCart = cartRepository.save(cart);
-        buyer.setCart(userNewCart);
-        buyerRepository.save(buyer);
+        SignUpResponse response = userService.registerNewBuyer(request);
 
         if (request.guestCartId() != null) {
-            cartService.mergeGuestCartWithUserCart(request.guestCartId(), userNewCart.getId());
-        }
 
-        String token = generateTokenForUser(savedUser);
+            Buyer buyer = buyerRepository.findByUserId(response.id())
+                    .orElseThrow(() -> new ResourceNotFoundException("Buyer profile not found"));
 
-        return new SignUpResponse(savedUser.getEmail(), savedUser.getId(), token);
+
+            if (buyer.getCart() != null) {
+                cartService.mergeGuestCartWithUserCart(request.guestCartId(), buyer.getCart().getId());
+            }
+
+                }
+
+        return response;
     }
 
 

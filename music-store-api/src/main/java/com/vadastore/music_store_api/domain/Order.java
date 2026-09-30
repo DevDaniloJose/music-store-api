@@ -54,7 +54,10 @@ public class Order {
 
     private LocalDateTime createdAt;
 
-
+    @PrePersist
+    protected void onCreate() {
+        this.createdAt = LocalDateTime.now();
+    }
     public void addOrderItem(OrderItem item) {
         this.items.add(item);
         item.setOrder(this);

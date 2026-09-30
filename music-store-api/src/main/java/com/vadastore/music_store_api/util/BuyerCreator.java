@@ -30,7 +30,6 @@ public class BuyerCreator {
                         .zipCode("33333-090")
                         .build()))
                 .createdAt(LocalDateTime.now())
-                .shippingAddress("Flower street, 501")
                 .build();
     }
 

@@ -22,19 +22,21 @@ public class PasswordResetService {
     private final UserRepository userRepository;
     private final ResetTokenRepository resetTokenRepository;
     private final MailSender mailSender;
+
     public void processRequest(String email) {
-        User user = userRepository.findByEmail(email).orElseThrow(() -> new EntityNotFoundException("invalid credentials"));
+         userRepository.findByEmail(email).ifPresent(user -> {
+            String token = tokenGenerator.makeResetToken();
 
-        String token = tokenGenerator.makeResetToken();
+            ResetToken record = new ResetToken();
+            record.setToken(token);
+            record.setUser(user);
+            record.setExpiresAt(LocalDateTime.now().plusMinutes(30));
 
-        ResetToken record = new ResetToken();
-        record.setToken(token);
-        record.setUser(user);
-        record.setExpiresAt(LocalDateTime.now().plusMinutes(30));
+            resetTokenRepository.save(record);
 
-        resetTokenRepository.save(record);
+            sendEmail(user.getEmail(), token);
+        });
 
-        sendEmail(user.getEmail(), token);
     }
 
 

@@ -23,8 +23,7 @@ public record SellerRequest(
                             @NotNull(message = "Document Number is required")
                             String documentNumber,
                             @NotNull(message = "Postal code is required")
-                            String postalCode,
-                            List<ProductResponse> products)
+                            String postalCode)
 
 {
             public Seller dtoToEntity(User user) {

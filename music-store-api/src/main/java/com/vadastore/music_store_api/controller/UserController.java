@@ -37,7 +37,7 @@ public class UserController {
     }
 
 
-    @PostMapping("/user/admin/createAdmin")
+    @PostMapping("/admin/createAdmin")
         public ResponseEntity<SignUpResponse> createAdmin (@Valid @RequestBody SignUpRequest request){
             return new ResponseEntity<>(userService.saveAdmin(request), HttpStatus.CREATED);
 

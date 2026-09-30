@@ -29,6 +29,7 @@ public class CartService {
     private final OrderRepository orderRepository;
     private final ProductService productService;
     private final AddressRepository addressRepository;
+    private final OrderService orderService;
 
     public CartItemResponse addItem(CartItemRequest item, Long cartId) {
         Product product = productRepository.findProductById(item.productId()).orElseThrow(() -> new EntityNotFoundException("Product not found"));
@@ -40,6 +41,10 @@ public class CartService {
 
         if (newAmount > product.getStock()) {
             throw new IllegalArgumentException("Unavailable stock");
+        }
+
+        if (!product.getIsActive()) {
+            throw new IllegalArgumentException("product is not active");
         }
 
         CartItem cartItem;
@@ -55,7 +60,7 @@ public class CartService {
 
         CartItem savedItem = cartItemRepository.save(cartItem);
 
-        BigDecimal subTotal = savedItem.getProduct().getPrice().multiply(BigDecimal.valueOf(savedItem.getQuantity()));
+        BigDecimal subTotal = savedItem.getProduct().getEffectivePrice().multiply(BigDecimal.valueOf(savedItem.getQuantity()));
 
         return new CartItemResponse(savedItem.getId(), ProductResponse.fromEntity(product),savedItem.getQuantity(), subTotal);
     }
@@ -87,6 +92,7 @@ public class CartService {
         return CartItemResponse.fromEntity(savedItem);
     }
 
+    @Transactional
     public void clearCart(Long cartId) {
         cartItemRepository.deleteAllByCartId(cartId);
     }
@@ -96,7 +102,7 @@ public class CartService {
 
         Cart cart = cartRepository.findByBuyerId(buyerId).orElseThrow(() -> new EntityNotFoundException("cart not found"));
 
-        BigDecimal totalPrice = cart.getItems().stream().map(item -> item.getProduct().getPrice().multiply(BigDecimal.valueOf(item.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal totalPrice = cart.getItems().stream().map(item -> item.getProduct().getEffectivePrice().multiply(BigDecimal.valueOf(item.getQuantity()))).reduce(BigDecimal.ZERO, BigDecimal::add);
 
         int totalItems = cart.getItems().stream().mapToInt(CartItem::getQuantity).sum();
 
@@ -120,8 +126,10 @@ public class CartService {
         }
 
         BigDecimal discountFactor = couponCodeEnum.getDiscountFactor();
+        cart.setCouponCode(couponCodeEnum);
+        cart.setDiscountFactor(couponCodeEnum.getDiscountFactor());
 
-        cart.setDiscountPercentage(discountFactor);
+        cart.setDiscountFactor(discountFactor);
 
         cartRepository.save(cart);
 
@@ -149,85 +157,53 @@ public class CartService {
 
     @Transactional
     public CartResponse mergeGuestCartWithUserCart(Long guestCartId, Long cartId) {
-        Cart guestCart = cartRepository.findById(guestCartId).orElseThrow(() -> new EntityNotFoundException("Cart not found"));
-        Cart userCart = cartRepository.findById(cartId).orElseThrow(() -> new EntityNotFoundException("Cart not found"));
 
+        Cart userCart = cartRepository.findById(cartId)
+                .orElseThrow(() -> new EntityNotFoundException("Cart not found"));
+
+        if (guestCartId.equals(cartId)) {
+            return CartResponse.fromEntity(userCart);
+        }
+
+        Cart guestCart = cartRepository.findById(guestCartId)
+                .orElseThrow(() -> new EntityNotFoundException("Cart not found"));
+
+        if (guestCart.getBuyer() != null) {
+            throw new IllegalArgumentException("Invalid guest cart");
+        }
 
         for (CartItem guestItem : guestCart.getItems()) {
+            Product product = guestItem.getProduct();
+            int availableStock = product.getStock();
 
-            Optional<CartItem> existingItem = userCart.getItems().stream().filter(c -> Objects.equals(c.getProduct().getId(), guestItem.getProduct().getId())).findFirst();
+            Optional<CartItem> existingItem = userCart.getItems().stream()
+                    .filter(c -> c.getProduct().getId().equals(product.getId()))
+                    .findFirst();
 
-        if (existingItem.isPresent()) {
-            CartItem userItem = existingItem.get();
-            userItem.setQuantity(guestItem.getQuantity() + userItem.getQuantity());
-        } else {
-            guestItem.setCart(userCart);
-            userCart.getItems().add(guestItem);
+            if (existingItem.isPresent()) {
+                CartItem userItem = existingItem.get();
+                int totalWanted = userItem.getQuantity() + guestItem.getQuantity();
+                userItem.setQuantity(Math.min(totalWanted, availableStock));
+            } else {
+
+                CartItem newItem = CartItem.builder()
+                        .cart(userCart)
+                        .product(product)
+                        .quantity(Math.min(guestItem.getQuantity(), availableStock))
+                        .build();
+                userCart.getItems().add(newItem);
+            }
         }
-        }
 
-        Cart savedUserCart = cartRepository.save(userCart);
-        guestCart.getItems().clear();
+        cartRepository.save(userCart);
         cartRepository.delete(guestCart);
-        return CartResponse.fromEntity(savedUserCart);
+
+        return CartResponse.fromEntity(userCart);
     }
 
 
     @Transactional
-    public OrderResponse checkout(Long cartId, CheckoutRequest checkoutRequest) {
-        Cart userCart = cartRepository.findById(cartId).orElseThrow(() -> new EntityNotFoundException("Cart not found"));
-        Address address = addressRepository.findById(checkoutRequest.shippingAddressId()).orElseThrow(() -> new EntityNotFoundException("address not found"));
-        BigDecimal totalPrice = BigDecimal.ZERO;
-
-        for (CartItem item : userCart.getItems()) {
-             if (item.getQuantity() > item.getProduct().getStock()) {
-                 throw new InsufficientStockException("Unavailable stock for product:" + item.getProduct().getName());
-             }
-
-           productService.decreaseStock(item.getProduct().getId(), item.getQuantity());
-
-             totalPrice =  totalPrice.add(item.getProduct().getEffectivePrice().multiply(BigDecimal.valueOf(item.getQuantity())));
-        }
-
-        List<OrderItem> orderItems = userCart.getItems().stream().map(cartItem -> OrderItem.builder()
-                .product(cartItem.getProduct())
-                .orderAmount(cartItem.getQuantity())
-                .orderItemUnitPrice(cartItem.getProduct().getEffectivePrice()).build()).toList();
-
-
-
-        if (userCart.getDiscountPercentage() != null) {
-         totalPrice =  totalPrice.multiply((userCart.getDiscountPercentage()));
-        }
-
-        totalPrice = totalPrice.setScale(2, RoundingMode.HALF_UP);
-
-        if (!address.getBuyer().getId().equals(userCart.getBuyer().getId())) {
-            throw new IllegalArgumentException("Address does not belong to this buyer");
-        }
-
-        String formattedAddress = String.format("%s, %s - %s, %s", address.getStreet(), address.getCity(), address.getState(), address.getZipCode());
-        Order order = Order.builder()
-                .buyer(userCart.getBuyer())
-                .orderStatus(OrderStatus.PENDING)
-                .userAddress(formattedAddress)
-                .totalPrice(totalPrice)
-                .shippingMethod(checkoutRequest.shippingMethod())
-                .paymentMethod(checkoutRequest.paymentMethod())
-                .items(orderItems)
-                .createdAt(LocalDateTime.now())
-                .build();
-
-
-        orderRepository.save(order);
-
-        clearCart(userCart.getId());
-
-        return new OrderResponse(order.getId(), userCart.getBuyer().getId(), order.getCreatedAt(),
-                order.getOrderStatus(), order.getTotalPrice(), userCart.getBuyer().getUser().getUsername(),
-                userCart.getBuyer().getUser().getEmail(), formattedAddress,
-                orderItems.stream().map(OrderItemResponse::fromEntity).toList());
+    public OrderResponse checkout(Long buyerId, CheckoutRequest checkoutRequest) {
+        return orderService.createOrderFromCheckout(buyerId, checkoutRequest);
     }
-
-
 }

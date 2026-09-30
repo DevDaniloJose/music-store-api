@@ -1,6 +1,7 @@
 package com.vadastore.music_store_api.service;
 
 import com.vadastore.music_store_api.domain.User;
+import com.vadastore.music_store_api.enums.Role;
 import com.vadastore.music_store_api.record.SellerRequest;
 import com.vadastore.music_store_api.record.SellerResponse;
 import com.vadastore.music_store_api.repository.ProductRepository;
@@ -29,10 +30,16 @@ public class SellerService {
 
                 User user = userRepository.findById(authenticatedId).orElseThrow(() -> new EntityNotFoundException("USer not found"));
 
-                Seller seller = request.dtoToEntity(user);
-                sellerRepository.save(seller);
 
-                return new SellerResponse(seller.getId(), seller.getStoreName());
+                if (!user.getRoles().contains(Role.SELLER)) {
+                    user.getRoles().add(Role.SELLER);
+                    userRepository.save(user);
+                }
+
+                Seller seller = request.dtoToEntity(user);
+                Seller savedSeller = sellerRepository.save(seller);
+
+                return new SellerResponse(savedSeller.getId(), savedSeller.getStoreName());
 
         }
 

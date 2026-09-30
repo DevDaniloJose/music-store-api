@@ -31,11 +31,11 @@ public class CartController {
 
     private final BuyerService buyerService;
 
-    @GetMapping()
+    @GetMapping
     public ResponseEntity<CartResponse> getCart(@AuthenticationPrincipal UserDetailsImpl user) {
-        return new ResponseEntity<>(cartService.getCart(user.getId()), HttpStatus.OK);
+        Long buyerId = buyerService.findBuyerByUserId(user.getUser().getId()).getId();
+        return ResponseEntity.ok(cartService.getCart(buyerId));
     }
-
 
     @PostMapping("/items")
     public ResponseEntity<CartItemResponse> addItem(@Valid @RequestBody CartItemRequest product, @AuthenticationPrincipal UserDetailsImpl userDetails) {
@@ -69,10 +69,12 @@ public class CartController {
         return new ResponseEntity<>(cartService.applyCoupon(cartId, couponCode.coupon()), HttpStatus.OK);
     }
 
+
     @PostMapping("/checkout")
-    public ResponseEntity<OrderResponse> checkout(@Valid @AuthenticationPrincipal UserDetailsImpl userDetails, @Valid @RequestBody CheckoutRequest checkoutRequest) {
-        Long cartId = buyerService.findBuyerByUserId(userDetails.getUser().getId()).getCart().getId();
-        return new ResponseEntity<>(cartService.checkout(cartId, checkoutRequest), HttpStatus.CREATED);
+    public ResponseEntity<OrderResponse> checkout(@AuthenticationPrincipal UserDetailsImpl userDetails,
+                                                  @Valid @RequestBody CheckoutRequest checkoutRequest) {
+        Long buyerId = buyerService.findBuyerByUserId(userDetails.getUser().getId()).getId();
+        return new ResponseEntity<>(cartService.checkout(buyerId, checkoutRequest), HttpStatus.CREATED);
     }
 
 }

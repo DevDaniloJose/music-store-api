@@ -38,15 +38,15 @@ public class PasswordResetController {
     }
 
 
-    @GetMapping("/reset-password/")
-    public ResponseEntity<String> validateToken(@Valid @RequestParam("token") String token) {
+    @GetMapping("/reset-password")
+    public ResponseEntity<String> validateToken(@RequestParam("token") String token) {
         Optional<ResetToken> tokenOpt = resetTokenRepository.findByToken(token);
 
         if (tokenOpt.isEmpty() || tokenOpt.get().isExpired()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid or expired token");
         }
 
-        return ResponseEntity.ok("password reset successfully");
+        return ResponseEntity.ok("token is valid");
     }
 
     @PostMapping("/reset-password/confirm")
